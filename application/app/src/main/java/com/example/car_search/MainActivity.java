@@ -11,9 +11,6 @@ import android.content.pm.PackageManager;
 import android.location.LocationManager;
 import android.os.Bundle;
 
-import com.google.android.gms.location.FusedLocationProviderClient;
-import com.google.android.gms.location.LocationServices;
-
 import android.Manifest;
 import android.provider.Settings;
 import android.util.Log;
@@ -25,25 +22,30 @@ import android.widget.Toast;
 public class MainActivity extends AppCompatActivity {
 
     public static final int unlockedVALUE = 1000;
+    public static final double EARTH_RADIUS_KM = 6371.0;
+    public static final int PERMISSION_ID = 44;
 
-    FusedLocationProviderClient locationProviderClient;
-    int PERMISSION_ID = 44;
-    private Locationer locationer;
+
     private TextView locationTextView;
+    private TextView degreesTextView;
+    private TextView distanceTextView;
+    private TextView angleTextView;
     private Button lock_unlock;
 
-    private boolean car_locked;
-    private float car_lon;
-    private float car_lat;
-    private float dev_lon;
-    private float dev_lat;
+    private float north_dgr;
+
+    private Locationer locationer;
+    private Orientationer orientationer;
+
+    // User's Car and Device instances
+    private Car car;
+    private Device device;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        get_car_info();
         lock_unlock = (Button) findViewById(R.id.lock_unlock);
         lock_unlock.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -51,11 +53,17 @@ public class MainActivity extends AppCompatActivity {
                 change_car_state();
             }
         });
-        update_car_info();
 
-        locationTextView = findViewById(R.id.locationTextView);
-        locationProviderClient = LocationServices.getFusedLocationProviderClient(this);
+        this.car = new Car(this, lock_unlock);
+        this.device = new Device();
+
+        locationTextView = findViewById(R.id.locationTextView); // delete later
+        degreesTextView = findViewById(R.id.degreesTextView); // delete later
+        distanceTextView = findViewById(R.id.distanceTextView); // delete later
+        angleTextView = findViewById(R.id.angleTextView); // delete later
         prepare_application();
+
+        this.orientationer = new Orientationer(this,this);
     }
 
     @Override
@@ -64,59 +72,24 @@ public class MainActivity extends AppCompatActivity {
         prepare_application();
     }
 
-    private void update_car_info() {
-        if (this.car_locked) {
-            this.lock_unlock.setText("ODKLENI");
-        } else {
-            this.lock_unlock.setText("ZAKLENI");
-        }
-    }
-    private void unlock_the_car() {
-        SharedPreferences sp = getSharedPreferences("CarINFO", MODE_PRIVATE);
-        SharedPreferences.Editor spe = sp.edit();
 
-        spe.putBoolean("locked", false);
-        spe.putFloat("lon", unlockedVALUE);
-        spe.putFloat("lat", unlockedVALUE);
-
-        get_car_info();
-    }
-
-    private void lock_the_car() {
-        SharedPreferences sp = getSharedPreferences("CarINFO", MODE_PRIVATE);
-        SharedPreferences.Editor spe = sp.edit();
-
-        spe.putBoolean("locked", true);
-        spe.putFloat("lon", this.dev_lon);
-        spe.putFloat("lat", this.dev_lat);
-
-        get_car_info();
-    }
-
-    private void get_car_info() {
-        SharedPreferences sp = getSharedPreferences("CarINFO", MODE_PRIVATE);
-        this.car_locked = sp.getBoolean("locked", false);
-        this.car_lon = sp.getFloat("lon", unlockedVALUE);
-        this.car_lat = sp.getFloat("lat", unlockedVALUE);
-    }
-
+    /*
+    Metoda change_car_state je odziv na gumb odkleni ali zakleni in klice javno metodo razreda Car, ki posodobi vse potrebne podatke o avtu
+     */
     private void change_car_state() {
-        if (this.car_locked) {
-            unlock_the_car();
-        } else {
-            lock_the_car();
-        }
-
-        update_car_info();
-        Log.d("SharedPreferencesTest", "Is car locked? " + this.car_locked);
+        this.car.negate_car_state(this.device);
     }
 
-    /* "start_location_updates" metoda sluzi kot zagon branja podatkov o lokaciji */
+    /* Metoda start_location_updates sluzi kot zagon branja podatkov o lokaciji */
     private void start_location_updates() {
         locationer = new Locationer(this);
         LocationManager locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationer);
     }
+
+    /*
+    TODO: prikaz zahtev na graficnem vmesniku!
+     */
     private void prepare_application () {
         if (!check_location_permission()) {
             request_location_permission();
@@ -130,29 +103,99 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public void updateLocationText(double lon, double lat) {
-        String locationText = "Lon: " + lon + "\nLat: " + lat;
-        locationTextView.setText(locationText);
+    // https://www.movable-type.co.uk/scripts/latlong.html
+    private float angle_device_to_car () {
+
+        double car_lon_radians = Math.toRadians(this.car.get_longitude());
+        double car_lat_radians = Math.toRadians(this.car.get_latitude());
+
+        double device_lon_radians = Math.toRadians(this.device.get_longitude());
+        double device_lat_radians = Math.toRadians(this.device.get_latitude());
+
+        double lon_difference = car_lon_radians - device_lon_radians;
+        double lat_difference = device_lat_radians - car_lat_radians;
+
+        double y = Math.sin(lon_difference) * Math.cos(car_lat_radians);
+        double x = Math.cos(device_lat_radians) * Math.sin(car_lat_radians)
+                - Math.sin(device_lat_radians) * Math.cos(car_lat_radians)
+                * Math.cos(lon_difference);
+
+        double angle_in_radians = Math.atan2(y, x);
+        double angle_in_degrees = Math.toDegrees(angle_in_radians);
+
+        angle_in_degrees = 360 - ((angle_in_degrees + 360) % 360);
+
+        angle_in_degrees = 0 + this.north_dgr - angle_in_degrees;
+
+        if (angle_in_degrees < -180) {
+            angle_in_degrees += 360;
+        }
+
+        if (angle_in_degrees < 0) {
+            angle_in_degrees = 360 - Math.abs(angle_in_degrees);
+        }
+
+        String distanceText = "Angle to srk19: " + angle_in_degrees + " dgr";
+        angleTextView.setText(distanceText);
+
+        return (float) angle_in_degrees;
+    }
+    public void update_degrees(float val) {
+        this.north_dgr = val;
+
+        String degrees = "dgr " + val;
+        degreesTextView.setText(degrees);
     }
 
-    /* "check_location_permission" metoda je namenjena preverjanju dveh nacinov dovoljenja dostopa lokacije v napravi */
+    // https://www.geeksforgeeks.org/program-distance-two-points-earth/
+    private float distnace_device_to_car () {
+        double car_lon_radians = Math.toRadians(this.car.get_longitude());
+        double car_lat_radians = Math.toRadians(this.car.get_latitude());
+        double device_lon_radians = Math.toRadians(this.device.get_longitude());
+        double device_lat_radians = Math.toRadians(this.device.get_latitude());
+
+        double lon_difference = car_lon_radians - device_lon_radians;
+        double lat_difference = car_lat_radians - device_lat_radians;
+
+        double formula1 = Math.pow(Math.sin(lat_difference / 2), 2) + Math.cos(car_lat_radians) * Math.cos(device_lat_radians) * Math.pow(Math.sin(lon_difference / 2), 2);
+        double formula2 = 2 * Math.asin(Math.sqrt(formula1));
+
+        double distance = EARTH_RADIUS_KM * formula2;
+
+        String distanceText = "Distance to srk19: " + distance + " km";
+        distanceTextView.setText(distanceText);
+
+        return (float) distance;
+    }
+    public void update_device_location(double lon, double lat) {
+        String locationText = "Lon: " + lon + "\nLat: " + lat;
+        locationTextView.setText(locationText);
+
+        this.device.set_longitude((float) lon);
+        this.device.set_latitude((float) lat);
+
+        distnace_device_to_car();
+        angle_device_to_car();
+    }
+
+    /* Metoda check_location_permission je namenjena preverjanju dovoljenja dveh nacinov dostopa lokacije v napravi */
     private boolean check_location_permission() {
         return ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED &&  ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
     }
 
-    /* Metoda "request_location_permission" omogoca, da se uporabnika prosi za dostop do lokacije naprave */
+    /* Metoda request_location_permission omogoca, da se uporabnika prosi za dostop do lokacije naprave */
     private void request_location_permission() {
         Toast.makeText(this, "V nastavivah aplikaciji omogocite uporabo GPS!", Toast.LENGTH_SHORT).show();
         // ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSION_ID);
     }
 
-    /* Metoda "check_location_access" podpira preverbo uporabe lokacije na napravi */
+    /* Metoda check_location_access podpira preverbo uporabe lokacije na napravi */
     private boolean check_location_access () {
         LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         return  locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) || locationManager.isProviderEnabled(locationManager.NETWORK_PROVIDER);
     }
 
-    /* Metoda "request_location_access" uporabnika s sporocilom prosi, naj na napravi vklopi aplikacijo */
+    /* Metoda request_location_access uporabnika s sporocilom prosi, naj na napravi vklopi aplikacijo */
     private void request_location_access() {
         Toast.makeText(this, "Prosimo, da vključite GPS!", Toast.LENGTH_LONG).show();
         // Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
