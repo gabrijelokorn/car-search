@@ -57,8 +57,8 @@ Z metodo get_car_info v lokalne spremenljivke shranimo prješnje stanje o avtu
         SharedPreferences.Editor spe = sp.edit();
 
         spe.putBoolean("locked", false);
-        spe.putFloat("lon", unlockedVALUE);
-        spe.putFloat("lat", unlockedVALUE);
+        spe.putFloat("lon", this.longitude);
+        spe.putFloat("lat", this.latitude);
 
         spe.apply();
     }
