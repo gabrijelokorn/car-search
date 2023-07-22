@@ -334,7 +334,7 @@ public class MainActivity extends AppCompatActivity {
             if (!(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
                 request_location_permission();
             } else {
-                Toast.makeText(this, "Location permissions denied", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Location permissions accepted!", Toast.LENGTH_SHORT).show();
             }
         }
     }
