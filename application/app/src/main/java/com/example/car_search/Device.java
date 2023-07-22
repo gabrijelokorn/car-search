@@ -1,5 +1,9 @@
 package com.example.car_search;
 
+/*
+* Class Device serves as a class to represent the user's location
+* */
+
 public class Device {
     private float longitude;
     private float latitude;

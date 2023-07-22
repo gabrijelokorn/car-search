@@ -22,6 +22,7 @@ public class Orientationer implements SensorEventListener {
     public Orientationer(Context context, MainActivity mainActivity) {
         this.mainActivity = mainActivity;
         this.context = context;
+
         this.sensorManager = (SensorManager) this.context.getSystemService(this.context.SENSOR_SERVICE);
         this.accelometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         this.magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
@@ -33,7 +34,7 @@ public class Orientationer implements SensorEventListener {
 
     @Override
     public void onSensorChanged(SensorEvent sensorEvent) {
-        if (sensorEvent.sensor.getType() == Sensor.TYPE_ACCELEROMETER){
+        if (sensorEvent.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
             this.gravity = sensorEvent.values;
         } else if (sensorEvent.sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD) {
             this.magnetic = sensorEvent.values;
@@ -56,6 +57,6 @@ public class Orientationer implements SensorEventListener {
 
     @Override
     public void onAccuracyChanged(Sensor sensor, int i) {
-        // Ta metoda mora obstajati, ker razred Orientationer razsirja SensorEventListner
+        // Method has to be overriden
     }
 }
